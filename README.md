@@ -14,13 +14,13 @@ I am going to implement all these points:
 
 - Lighting and air condition scheduling by web API `0%`
 
-- USB web camera by API: image in url as mime-type image/png and endpoint with image data as base64 `0%`
+- USB web camera by API: image in url as mime-type image/png and endpoint with image data as base64 `100%`
 
 - The real time light spot detection algorithm in images from USB camera (with web API) `0%`
 
 - Web API to manage sound alarm `0%`
 
-- Temperature logs to chart, base64 image data in web API `0%`
+- Temperature logs to chart, base64 image data in web API `50%`
 
 - Telegram bot in Docker with command for all available features in web API  `0%`
 
