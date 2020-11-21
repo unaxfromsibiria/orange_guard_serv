@@ -1,7 +1,4 @@
 # OrangePi peripheries access server
-# fastapi==0.61.2
-# uvicorn==0.12.2
-# uvloop==0.14.0
 
 import asyncio
 import logging
@@ -13,105 +10,41 @@ from datetime import datetime
 from datetime import timedelta
 
 from fastapi import FastAPI
-from genericpath import exists
+from fastapi import HTTPException
+from pydantic import BaseModel
+from starlette.responses import StreamingResponse
 
-from .helpers import current_date, env_var_bool
+from .helpers import current_date
 from .helpers import current_datetime
+from .helpers import env_var_bool
 from .helpers import env_var_float
 from .helpers import env_var_int
 from .helpers import env_var_line
 from .helpers import env_var_time
+from .img import get_png_photo
+from .img import png_img_to_base64
+from .img import png_img_to_buffer
 from .network_check import check
+from .temperature import TEMPERATURE_READ_INTERVAL
+from .temperature import clear_tempearture_storage
+from .temperature import cpu_temperature
+from .temperature import read_temperature
+from .temperature import read_temperature_history
+from .temperature import save_tempearture
 
 REBOOT_ALLOW = env_var_bool("REBOOT_ALLOW")
 NETWORK_CHECK_TIMEOUT = env_var_time("NETWORK_CHECK_TIMEOUT") or 600
 
-TEMPERATURE_STORAGE = env_var_line("TEMPERATURE_STORAGE") or "/data/temperature"  # noqa
-# in mb default 150 mb
-TEMPERATURE_STORAGE_MAX_SIZE = env_var_int("TEMPERATURE_STORAGE_MAX_SIZE") or 150  # noqa
-# sensor
-TEMPERATURE_DEVICE = env_var_line("TEMPERATURE_DEVICE") or "/sys/bus/w1/devices/w1_bus_master1/28-fc6db0116461/w1_slave"  # noqa
-TEMPERATURE_READ_INTERVAL = env_var_time("TEMPERATURE_READ_INTERVAL") or 30  # noqa
-logger = logging.getLogger("uvicorn.asgi")
-
-
-def read_temperature() -> typing.Optional[float]:
-    """Get the current temperature value in C.
-        73 01 ff ff 7f ff ff ff 86 : crc=86 YES
-        73 01 ff ff 7f ff ff ff 86 t=23187
-    """
-    result = None
-    try:
-        with open(TEMPERATURE_DEVICE) as t_file:
-            data = t_file.read()
-        for part in data.split():
-            if "t=" in part:
-                result = float(part.replace("t=", "")) / 1000
-                break
-    except Exception:
-        pass
-
-    return result
-
-
-def current_temperature_filepath(dt: typing.Optional[datetime] = None) -> str:
-    file_name, *_ = (dt or current_date()).isoformat().rsplit("-", 1)
-    return os.path.join(
-        TEMPERATURE_STORAGE, f"month_t_{file_name}.csv"
-    )
-
-
-def save_tempearture() -> bool:
-    """Save record to file.
-    """
-    value = read_temperature()
-    if value is None:
-        logger.error(f"Sensor value: {value}")
-        return False
-
-    filepath = current_temperature_filepath()
-    try:
-        with open(filepath, "a") as out:
-            out.write(f"{current_datetime()},{value:0.2f}\n")
-    except Exception as err:
-        logger.critical(
-            f"Error write value in '{filepath}': {err}"
-        )
-        return False
-
-    return True
-
-
-def clear_tempearture_storage():
-    """Remove old files.
-    """
-    one_month = timedelta(days=31)
-    files = []
-    dt = current_datetime()
-    exists_file = True
-    while exists_file:
-        file_path = current_temperature_filepath(dt)
-        dt -= one_month
-        exists_file = os.path.exists(file_path)
-        if exists_file:
-            files.append(file_path)
-
-    files.reverse()
-    logger.info(f"Files in storage: {len(files)}")
-    size = TEMPERATURE_STORAGE_MAX_SIZE + 1
-    while files and size > TEMPERATURE_STORAGE_MAX_SIZE:
-        size = sum(map(os.path.getsize, files)) / (1024 ** 2)
-        if size > TEMPERATURE_STORAGE_MAX_SIZE:
-            old_filepath, *_ = files
-            files = files[1:]
-            logger.warning(f"Delete old temperature file '{old_filepath}'")
-            os.remove(old_filepath)
-        else:
-            logger.info(f"Current temperature storage size: {size}")
+logger = logging.getLogger(env_var_line("LOGGER") or "uvicorn.asgi")
 
 
 class ServerApp(FastAPI):
     current_state: dict
+
+
+class IntervalPrams(BaseModel):
+    begin: date
+    end: date
 
 
 app = ServerApp()
@@ -176,7 +109,10 @@ async def initial_task():
 @app.get("/")
 async def root_page_api():
     result = subprocess.run(["uname", "-a"], capture_output=True, text=True)
-    return {"os": f"{result.stdout}".strip()}
+    return {
+        "os": f"{result.stdout}".strip(),
+        "cpu_temperature": cpu_temperature()
+    }
 
 
 @app.get("/t")
@@ -190,8 +126,49 @@ async def temperature_api():
     return {"temperature": result}
 
 
+@app.get("/t/history")
+async def temperature_history_api(intval: IntervalPrams):
+    """Log of temperature of time interval.
+    """
+    data = read_temperature_history(intval.begin, intval.end)
+    return {
+        "history": [
+            [dt.to_pydatetime().isoformat(), float(val)]
+            for dt, val in data.itertuples(index=False)
+        ]
+    }
+
+
 @app.get("/check-internet")
 async def check_internet_api():
     return {
         "ok": check(logger)
     }
+
+
+@app.get("/photo.png")
+async def make_photo():
+    """Photo from web camera.
+    """
+    img = get_png_photo()
+    if img:
+        result = StreamingResponse(
+            png_img_to_buffer(img), media_type="image/png"
+        )
+    else:
+        result = HTTPException(status_code=404, detail="Camera not available")
+
+    return result
+
+
+@app.get("/photo.json")
+async def make_json_photo():
+    """Photo from web camera in base64.
+    """
+    img = get_png_photo()
+    if img:
+        result = {"image": png_img_to_base64(img)}
+    else:
+        result = {"error": "Camera not available"}
+
+    return result
