@@ -4,4 +4,8 @@ uvloop==0.14.0
 numpy==1.19.4
 pillow==8.0.1
 matplotlib==3.3.3
-pandas==1.1.4
+ipython==7.19.0
+
+# do not install pandas by pip, use the apt:
+# apt-get install python3-pandas
+# virtualenv --system-site-packages -p /usr/bin/python3.8 /opt/venv3.8/

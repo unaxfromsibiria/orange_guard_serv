@@ -4,6 +4,9 @@ import os
 import typing
 import uuid
 
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import pandas as pd
 from PIL.Image import Image
 from PIL.Image import open as img_open
 
@@ -14,6 +17,10 @@ DEVICE = env_var_line("WEBCAM_DEVICE") or "video0"
 RESOLUTION = env_var_line("WEBCAM_RESOLUTION") or "640x480"
 
 NETWORK_CHECK_TIMEOUT = env_var_time("NETWORK_CHECK_TIMEOUT") or 600
+fig, ax = plt.subplots()
+
+ax.fmt_xdata = mdates.DateFormatter("%Y-%m-%d")
+ax.grid(True)
 
 
 def get_png_photo(png_factor: int = 9) -> typing.Optional[Image]:
@@ -52,3 +59,19 @@ def png_img_to_base64(img: Image) -> str:
         result = base64.b64encode(buffer.getvalue()).decode()
 
     return result
+
+
+def table_to_image(
+    data: pd.DataFrame, titile: str = ""
+) -> io.BytesIO:
+    """Create image with rate table.
+    """
+    dia = data.plot()
+    if titile:
+        ax.set_title(titile)
+
+    buffer = io.BytesIO()
+    img = dia.get_figure()
+    img.savefig(buffer)
+    buffer.seek(0)
+    return buffer

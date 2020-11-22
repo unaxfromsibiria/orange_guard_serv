@@ -137,9 +137,9 @@ def read_temperature_history(
     else:
         result: pd.DataFrame = pd.concat(data, ignore_index=True)
 
-    result.column = ["dt", "value"]
+    result.columns = ["dt", "value"]
     result.dt = result.dt.astype("datetime64")
     data.clear()
-    result = result[result.dt > begin & result.dt < end]
+    result = result[(result.dt >= begin) & (result.dt < end + timedelta(1))]
     result.sort_values("dt", inplace=True)
     return result

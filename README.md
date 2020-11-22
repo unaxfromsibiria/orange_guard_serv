@@ -2,7 +2,7 @@
 
 I am going to implement all these points:
 
-- API server for device peripheries FastAPI based `70%`
+- API server for device peripheries FastAPI based `80%`
 
 - Network checker with reboot options (usfull for USB modem) `100%`
 
@@ -20,7 +20,7 @@ I am going to implement all these points:
 
 - Web API to manage sound alarm `0%`
 
-- Temperature logs to chart, base64 image data in web API `50%`
+- Temperature logs to chart, base64 image data in web API `100%`
 
 - Telegram bot in Docker with command for all available features in web API  `0%`
 
