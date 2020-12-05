@@ -4,25 +4,21 @@ import asyncio
 import logging
 import os
 import subprocess
-import typing
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
-from datetime import datetime
-from datetime import timedelta
 
 from fastapi import FastAPI
 from fastapi import HTTPException
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from .helpers import current_date
 from .helpers import current_datetime
 from .helpers import env_var_bool
-from .helpers import env_var_float
 from .helpers import env_var_int
 from .helpers import env_var_line
 from .helpers import env_var_time
-from .helpers import env_var_uuid
+from .img import compare_areas
+from .img import get_photo_area
 from .img import get_png_photo
 from .img import png_img_to_base64
 from .img import png_img_to_buffer
@@ -37,6 +33,9 @@ from .temperature import save_tempearture
 
 REBOOT_ALLOW = env_var_bool("REBOOT_ALLOW")
 NETWORK_CHECK_TIMEOUT = env_var_time("NETWORK_CHECK_TIMEOUT") or 600
+CAMERA_CHECK_INTERVAL = env_var_int("CAMERA_CHECK_INTERVAL") or 5
+# percent 70% by default
+IMG_COMPARE_LIMIT = env_var_int("IMG_COMPARE_LIMIT") or 70
 
 logger = logging.getLogger(env_var_line("LOGGER") or "uvicorn.asgi")
 
@@ -52,6 +51,29 @@ class IntervalPrams(BaseModel):
 
 
 app = ServerApp()
+
+
+async def watch_image_changes(state: dict, pool: ProcessPoolExecutor):
+    """Compare images.
+    """
+    loop = asyncio.get_running_loop()
+    while state.get("active"):
+        try:
+            img = await loop.run_in_executor(pool, get_photo_area)
+        except Exception as err:
+            img = None
+            logger.error("Photo getting error: %s", err)
+            continue
+
+        prev_img = state.get("last_image")
+        state["last_image"] = img
+        if not(prev_img is None or img is None):
+            prop = compare_areas(prev_img, img)
+            if prop < IMG_COMPARE_LIMIT:
+                logger.warning(f"Camera changes detected {prop}")
+                state["image_events"].append((prop, current_datetime()))
+
+        await asyncio.sleep(CAMERA_CHECK_INTERVAL)
 
 
 async def temperature_watcher(state: dict):
@@ -103,14 +125,19 @@ async def initial_task():
     """Background logic.
     """
     app.ps_executor = ProcessPoolExecutor(
-        max_workers=env_var_int("WORKERS_PS_EXECUTER") or 2
+        max_workers=env_var_int("WORKERS_PS_EXECUTER") or 4
     )
-    app.current_state = {"active": True}
+    app.current_state = {
+        "active": True,
+        "last_image": None,
+        "image_events": [],
+    }
     logger.info("Setup service tasks..")
     loop = asyncio.get_running_loop()
     loop.create_task(temperature_watcher(app.current_state))
     loop.create_task(temperature_storage_watcher(app.current_state))
     loop.create_task(network_watcher(app.current_state))
+    loop.create_task(watch_image_changes(app.current_state, app.ps_executor))
 
 
 @app.on_event("shutdown")
@@ -230,4 +257,16 @@ async def make_json_photo():
     else:
         result = {"error": "Camera not available"}
 
+    return result
+
+
+@app.get("/photo-events")
+async def photo_events_api():
+    """Events from camera.
+    """
+    result = {"data": {
+        dt.isoformat(): value
+        for value, dt in app.current_state["image_events"]
+    }}
+    app.current_state["image_events"].clear()
     return result

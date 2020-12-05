@@ -16,7 +16,7 @@ I am going to implement all these points:
 
 - USB web camera by API: image in url as mime-type image/png and endpoint with image data as base64 `100%`
 
-- The real time light spot detection algorithm in images from USB camera (with web API) `0%`
+- The real time light spot detection algorithm in images from USB camera (with web API) `100%`
 
 - Web API to manage sound alarm `0%`
 
