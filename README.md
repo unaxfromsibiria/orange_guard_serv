@@ -22,6 +22,6 @@ I am going to implement all these points:
 
 - Temperature logs to chart, base64 image data in web API `100%`
 
-- Telegram bot in Docker with command for all available features in web API  `0%`
+- Telegram bot in Docker with command for all available features in web API  `20%`
 
 - Write the result in the Readme (plus an instruction how to deploy the system into new mini PC) `0%`
