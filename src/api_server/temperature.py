@@ -127,7 +127,9 @@ def read_temperature_history(
         this_m = this_m.replace(day=1) + timedelta(days=31)
         to_next = this_m < end
         if os.path.exists(filepath):
-            data.append(pd.read_csv(filepath))
+            part = pd.read_csv(filepath)
+            part.columns = ["dt", "value"]
+            data.append(part)
 
     n = len(data)
     if n == 0:
@@ -137,7 +139,6 @@ def read_temperature_history(
     else:
         result: pd.DataFrame = pd.concat(data, ignore_index=True)
 
-    result.columns = ["dt", "value"]
     result.dt = result.dt.astype("datetime64")
     data.clear()
     result = result[(result.dt >= begin) & (result.dt < end + timedelta(1))]

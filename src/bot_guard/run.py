@@ -1,5 +1,6 @@
 # run: python -m bot_guard.run
 import logging
+from datetime import timedelta
 
 from aiogram import Bot
 from aiogram import Dispatcher
@@ -9,6 +10,7 @@ from aiogram import types
 from .command import CommandHandler
 from .const import HELP_MSG
 from .const import NOT_ACCESS_ERROR
+from .helpers import current_date
 from .helpers import env_var_line
 from .storage import DataStorage
 
@@ -47,6 +49,33 @@ async def make_adduser_answer(message: types.Message):
         await message.answer(
             f"New user '{new_user}' (is new: {is_new})"
         )
+    else:
+        await message.answer(NOT_ACCESS_ERROR)
+
+
+@dp.message_handler(commands="temp")
+async def make_temp_img_answer(message: types.Message):
+    accepted = await handler.access(message.from_user)
+    if accepted:
+        days = (message.get_args() or "").split()
+        begin = end = None
+        if days:
+            if len(days) == 2:
+                begin, end = days
+            elif len(days) == 1:
+                begin, *_ = days
+
+        if end is None:
+            end = current_date().isoformat()
+        if begin is None:
+            begin = (current_date() - timedelta(30)).isoformat()
+
+        msg, img_data  = await handler.temperature_history(begin, end)
+        if img_data:
+            await message.reply_photo(img_data, caption=msg)
+        else:
+            await message.answer(msg)
+
     else:
         await message.answer(NOT_ACCESS_ERROR)
 
