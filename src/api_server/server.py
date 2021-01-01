@@ -4,8 +4,10 @@ import asyncio
 import logging
 import os
 import subprocess
+import typing
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
+from datetime import timedelta
 
 from fastapi import FastAPI
 from fastapi import HTTPException
@@ -16,6 +18,7 @@ from .helpers import current_datetime
 from .helpers import env_var_bool
 from .helpers import env_var_int
 from .helpers import env_var_line
+from .helpers import env_var_list
 from .helpers import env_var_time
 from .img import compare_areas
 from .img import get_photo_area
@@ -31,11 +34,26 @@ from .temperature import read_temperature
 from .temperature import read_temperature_history
 from .temperature import save_tempearture
 
+BOARD_NAME = env_var_line("BOARD_NAME") or "PCPCPLUS"
+try:
+    import OPi.GPIO as GPIO
+except ImportError:
+    GPIO = None
+else:
+    board = int(getattr(GPIO, BOARD_NAME, GPIO.PCPCPLUS))
+    GPIO.setboard(board)
+    GPIO.setwarnings(True)
+    GPIO.setmode(GPIO.BOARD)
+
 REBOOT_ALLOW = env_var_bool("REBOOT_ALLOW")
 NETWORK_CHECK_TIMEOUT = env_var_time("NETWORK_CHECK_TIMEOUT") or 600
 CAMERA_CHECK_INTERVAL = env_var_int("CAMERA_CHECK_INTERVAL") or 5
 # percent 70% by default
 IMG_COMPARE_LIMIT = env_var_int("IMG_COMPARE_LIMIT") or 70
+PINS = env_var_list("PINS")
+DEFAULT_WATCH_ITER_TIME = 1
+GPIO_STATA_OFF = True
+GPIO_STATA_ON = False
 
 logger = logging.getLogger(env_var_line("LOGGER") or "uvicorn.asgi")
 
@@ -45,9 +63,16 @@ class ServerApp(FastAPI):
     ps_executor = ProcessPoolExecutor()
 
 
-class IntervalPrams(BaseModel):
+class IntervalParams(BaseModel):
     begin: date
     end: date
+
+
+class GpioStateParams(BaseModel):
+    delay: int = 60
+    pins: typing.List[int]
+    # set state
+    state: bool = True
 
 
 app = ServerApp()
@@ -120,6 +145,35 @@ async def network_watcher(state: dict):
         await asyncio.sleep(NETWORK_CHECK_TIMEOUT)
 
 
+async def gpio_watcher(state: dict):
+    """Gpio timer.
+    """
+    field = "pins_time"
+    while state.get("active"):
+        await asyncio.sleep(DEFAULT_WATCH_ITER_TIME)
+        now = current_datetime()
+        off_pins = [
+            pin for pin, limit in (state.get(field) or {}).items()
+            if limit and limit < now
+        ]
+        if off_pins:
+            for pin in off_pins:
+                if not state["pins"][pin]:
+                    continue
+
+                try:
+                    GPIO.output(pin, GPIO_STATA_OFF)
+                    del state[field][pin]
+                except Exception as err:
+                    logger.error(f"Problem with PIN {pin}: {err}")
+                    continue
+
+                logger.info(f"PIN {pin} turned off automatically")
+                state["pins"][pin] = False
+
+            off_pins.clear()
+
+
 @app.on_event("startup")
 async def initial_task():
     """Background logic.
@@ -127,17 +181,29 @@ async def initial_task():
     app.ps_executor = ProcessPoolExecutor(
         max_workers=env_var_int("WORKERS_PS_EXECUTER") or 4
     )
+    logger.info(f"Pins: {PINS}")
+    pins = list(map(int, PINS))
+    PINS.clear()
+    PINS.extend(pins)
     app.current_state = {
         "active": True,
         "last_image": None,
         "image_events": [],
+        "pins": {pin: False for pin in pins},
+        "pins_time": {}
     }
+    if GPIO:
+        for pin in pins:
+            GPIO.setup(pin, GPIO.OUT)
+            GPIO.output(pin, GPIO_STATA_OFF)
+
     logger.info("Setup service tasks..")
     loop = asyncio.get_running_loop()
     loop.create_task(temperature_watcher(app.current_state))
     loop.create_task(temperature_storage_watcher(app.current_state))
     loop.create_task(network_watcher(app.current_state))
     loop.create_task(watch_image_changes(app.current_state, app.ps_executor))
+    loop.create_task(gpio_watcher(app.current_state))
 
 
 @app.on_event("shutdown")
@@ -197,7 +263,7 @@ def create_temperature_history_chart(
 
 
 @app.post("/t/history")
-async def temperature_history_api(intval: IntervalPrams):
+async def temperature_history_api(intval: IntervalParams):
     """Log of temperature of time interval.
     """
     loop = asyncio.get_running_loop()
@@ -211,7 +277,7 @@ async def temperature_history_api(intval: IntervalPrams):
 
 
 @app.post("/t/history.jpeg")
-async def temperature_history_api_jpeg(intval: IntervalPrams):
+async def temperature_history_api_jpeg(intval: IntervalParams):
     """Log of temperature of time interval as chart.
     """
     loop = asyncio.get_running_loop()
@@ -269,4 +335,49 @@ async def photo_events_api():
         for value, dt in app.current_state["image_events"]
     }}
     app.current_state["image_events"].clear()
+    return result
+
+
+@app.post("/gpio")
+async def gpio_state_api(state: GpioStateParams):
+    """Set state and timer limit for PINs.
+    """
+    errors = []
+    changed = 0
+    for pin in state.pins:
+        if pin not in PINS:
+            errors.append(f"Unsupported PIN: {pin}")
+            continue
+
+        if app.current_state["pins"][pin] == state.state:
+            continue
+
+        try:
+            GPIO.output(
+                pin,
+                GPIO_STATA_ON if state.state else GPIO_STATA_OFF
+            )
+        except Exception as err:
+            msg = f"Pin {pin} error: {err}"
+            logger.error(msg)
+            errors.append(msg)
+            continue
+
+        dt = current_datetime() + timedelta(seconds=state.delay)
+        try:
+            app.current_state["pins"][pin] = state.state
+            app.current_state["pins_time"][pin] = dt
+        except Exception as err:
+            logger.critical(
+                f"State {app.current_state} error: {err}"
+            )
+            errors.append(f"State error: {err}")
+        else:
+            changed += 1
+            logger.info(f"PIN {pin} will back state at {dt}")
+
+    result = {"changed": changed}
+    if errors:
+        result["errors"] = errors
+
     return result
