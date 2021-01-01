@@ -7,6 +7,8 @@ import subprocess
 import typing
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
+from datetime import datetime
+from datetime import time
 from datetime import timedelta
 
 from fastapi import FastAPI
@@ -73,6 +75,17 @@ class GpioStateParams(BaseModel):
     pins: typing.List[int]
     # set state
     state: bool = True
+
+
+class TimeIntervalRecord(BaseModel):
+    begin: time
+    end: time
+
+
+class GpioScheduleParams(BaseModel):
+    intervals: typing.List[TimeIntervalRecord]
+    pins: typing.List[int]
+    update: bool = True
 
 
 app = ServerApp()
@@ -148,14 +161,28 @@ async def network_watcher(state: dict):
 async def gpio_watcher(state: dict):
     """Gpio timer.
     """
-    field = "pins_time"
+    on_pins = []
+    off_pins = []
     while state.get("active"):
         await asyncio.sleep(DEFAULT_WATCH_ITER_TIME)
         now = current_datetime()
-        off_pins = [
-            pin for pin, limit in (state.get(field) or {}).items()
+        day = now.date()
+        off_pins.clear()
+        off_pins.extend(
+            pin for pin, limit in (state.get("pins_time") or {}).items()
             if limit and limit < now
-        ]
+        )
+        on_pins.clear()
+        # from schedule
+        for pin, begin_time, end_time in state.get("pins_schedule") or []:
+            begin = datetime.combine(day, begin_time)
+            end = datetime.combine(day, end_time)
+            if begin <= now <= end:
+                if pin not in off_pins:
+                    on_pins.append(pin)
+            else:
+                off_pins.append(pin)
+
         if off_pins:
             for pin in off_pins:
                 if not state["pins"][pin]:
@@ -163,7 +190,8 @@ async def gpio_watcher(state: dict):
 
                 try:
                     GPIO.output(pin, GPIO_STATA_OFF)
-                    del state[field][pin]
+                    if pin in state["pins_time"]:
+                        del state["pins_time"][pin]
                 except Exception as err:
                     logger.error(f"Problem with PIN {pin}: {err}")
                     continue
@@ -171,7 +199,19 @@ async def gpio_watcher(state: dict):
                 logger.info(f"PIN {pin} turned off automatically")
                 state["pins"][pin] = False
 
-            off_pins.clear()
+        if on_pins:
+            for pin in on_pins:
+                if state["pins"][pin]:
+                    continue
+
+                try:
+                    GPIO.output(pin, GPIO_STATA_ON)
+                except Exception as err:
+                    logger.error(f"Problem with PIN {pin}: {err}")
+                    continue
+
+                logger.info(f"PIN {pin} turned on automatically by schedule")
+                state["pins"][pin] = True
 
 
 @app.on_event("startup")
@@ -190,7 +230,8 @@ async def initial_task():
         "last_image": None,
         "image_events": [],
         "pins": {pin: False for pin in pins},
-        "pins_time": {}
+        "pins_time": {},
+        "pins_schedule": []
     }
     if GPIO:
         for pin in pins:
@@ -377,6 +418,44 @@ async def gpio_state_api(state: GpioStateParams):
             logger.info(f"PIN {pin} will back state at {dt}")
 
     result = {"changed": changed}
+    if errors:
+        result["errors"] = errors
+
+    return result
+
+
+@app.get("/gpio-state")
+async def gpio_state_info():
+    """App state of gpio.
+    """
+    return {
+        field: app.current_state.get(field)
+        for field in ("pins", "pins_schedule", "pins_time")
+    }
+
+
+@app.post("/gpio-schedule")
+async def gpio_state_schedule_api(options: GpioScheduleParams):
+    """Set schedule for PINs.
+    """
+    errors = []
+    result = {}
+    new_state = []
+    if options.update:
+        for pin, start, end in app.current_state["pins_schedule"]:
+            if pin not in new_state:
+                new_state.append((pin, start, end))
+
+    for pin in options.pins:
+        if pin not in PINS:
+            errors.append(f"Unsupported PIN: {pin}")
+            continue
+
+        for interval in options.intervals:
+            new_state.append((pin, interval.begin, interval.end))
+
+    app.current_state["pins_schedule"] = new_state
+    result["schedule"] = new_state
     if errors:
         result["errors"] = errors
 
