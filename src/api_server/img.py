@@ -3,18 +3,22 @@ import io
 import os
 import typing
 import uuid
-import numpy as np
+
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from PIL.Image import Image
 from PIL.Image import open as img_open
+from PIL.ImageFilter import BoxBlur
 
 from .helpers import env_var_line
 from .helpers import env_var_time
 
 DEVICE = env_var_line("WEBCAM_DEVICE") or "video0"
 RESOLUTION = env_var_line("WEBCAM_RESOLUTION") or "640x480"
+IMG_W, ING_H = map(int, RESOLUTION.split("x"))
+BLUR_RAD = IMG_W // 100
 
 NETWORK_CHECK_TIMEOUT = env_var_time("NETWORK_CHECK_TIMEOUT") or 600
 fig, ax = plt.subplots()
@@ -41,12 +45,15 @@ def get_png_photo(png_factor: int = 9) -> typing.Optional[Image]:
     return image
 
 
-def get_photo_area(png_factor: int = 9) -> typing.Optional[np.array]:
+def get_photo_area(
+    png_factor: int = 9,
+    img_filter: BoxBlur = BoxBlur(BLUR_RAD)
+) -> typing.Optional[np.array]:
     """Get image from web camera.
     """
     image = get_png_photo(png_factor)
     if image:
-        arr = np.asarray(image) / 255
+        arr = np.asarray(image.filter(img_filter)) / 255
         return np.mean(arr, axis=2)
 
     return None
