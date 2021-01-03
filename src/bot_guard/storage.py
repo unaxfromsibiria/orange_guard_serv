@@ -31,6 +31,7 @@ class BaseStorage:
             "state": uuid.uuid4().hex,
             "values": {},
             "users": DEFAULT_USERS,
+            "subscription": [],
         }
 
         self.last_update = current_datetime() - DUMP_UPDATE_TIME
@@ -67,6 +68,32 @@ class BaseStorage:
         self.data["users"] = sorted(data)
         self.sync()
 
+    @property
+    def subscription(self) -> list:
+        return sorted(set(
+            self.data.get("subscription") or []
+        ))
+
+    def subscription_add(self, chat_id: int):
+        """Add chat id to subscription.
+        """
+        chat_id_set = set(self.data.get("subscription") or [])
+        n = len(chat_id_set)
+        chat_id_set.add(chat_id)
+        if n < len(chat_id_set):
+            self.logger.info(f"new chat {chat_id} in events subscription")
+            self.data["subscription"] = sorted(chat_id_set)
+            self.sync(force=True)
+
+    def subscription_remove(self, chat_id: int):
+        """Remove chat id from subscription.
+        """
+        chat_id_set = set(self.data.get("subscription") or [])
+        if chat_id in chat_id_set:
+            chat_id_set.remove(chat_id)
+            self.data["subscription"] = sorted(chat_id_set)
+            self.sync()
+
 
 class DataStorage(BaseStorage):
     """Process data in local file.
@@ -94,6 +121,7 @@ class DataStorage(BaseStorage):
 
             if isinstance(prev_data, dict):
                 prev_users = prev_data.get("users") or []
+                prev_subscription = prev_data.get("subscription") or []
                 prev_values = prev_data.get("values") or {}
                 prev_values.update(self.data["values"])
                 self.data["values"] = prev_values
@@ -101,6 +129,10 @@ class DataStorage(BaseStorage):
                     prev_users = set(prev_users)
                     prev_users.update(self.data.get("users") or [])
                     self.data["users"] = sorted(prev_users)
+                if prev_subscription:
+                    prev_subscription = set(prev_subscription)
+                    prev_subscription.update(self.data.get("subscription") or [])
+                    self.data["subscription"] = sorted(prev_subscription)
 
             self.last_update = datetime.now()
             curr_state = self.data["state"] = uuid.uuid4().hex
