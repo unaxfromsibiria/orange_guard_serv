@@ -24,4 +24,6 @@ I am going to implement all these points:
 
 - Telegram bot in Docker with command for all available features in web API  `20%`
 
+- An alert message from bot for too fast changed temperature `100%`
+
 - Write the result in the Readme (plus an instruction how to deploy the system into new mini PC) `0%`

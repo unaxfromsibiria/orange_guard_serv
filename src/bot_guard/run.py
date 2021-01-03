@@ -73,10 +73,9 @@ async def event_watcher(logger: logging.Logger):
 
             # send
             if content:
+                msg = "\n".join(content)
                 for chat_id in chat_ids:
-                    await bot.send_message(
-                        chat_id=chat_id, text="\n".join(content)
-                    )
+                    await bot.send_message(chat_id=chat_id, text=msg)
 
 
 async def setup_loop(dispatcher):
