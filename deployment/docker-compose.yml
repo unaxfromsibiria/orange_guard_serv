@@ -1,0 +1,31 @@
+# docker-compose -f ./deployment/docker-compose.yml up --build -d
+version: "3.7"
+
+services:
+
+  bot_service:
+    build:
+      context: ..
+      dockerfile: deployment/bot.Dockerfile
+    restart: on-failure:5
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DEFAULT_USERS=${DEFAULT_USERS}
+      - DUMP_UPDATE_TIME=60
+      - WATCH_INTERVAL=600
+      - TEMP_ALERT_DELTA=2
+      - STATE_DATA_FILE=/opt/data/state.json
+      - API_HOST_URL=${API_HOST_URL}
+    networks:
+      private_net:
+        ipv4_address: 10.11.1.11
+    volumes:
+      - .data:/opt/data
+
+networks:
+
+  private_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.11.1.0/24
