@@ -12,6 +12,9 @@ from .storage import BaseStorage
 TEMP_IMG_URI = env_var_line("TEMP_IMG_URI") or "t/history.jpeg"
 TEMP_VAL_URI = env_var_line("TEMP_VAL_URI") or "t"
 GPIO_API_URI = env_var_line("GPIO_API_URI") or "gpio"
+GPIO_SCHEDULE_API_URI = (
+    env_var_line("GPIO_SCHEDULE_API_URI") or "gpio-schedule"
+)
 PHOTO_EVENTS_URI = env_var_line("PHOTO_EVENTS_URI") or "/photo-events"
 # GPIO_CONFIG=air:1 2 4, alarm: 15
 GPIO_CONFIG: typing.Dict[str, tuple] = {
@@ -32,6 +35,7 @@ class CommandHandler:
     api_host: str
     temp_api_url: str
     gpio_api_url: str
+    gpio_schedule_api_url: str
     photo_event_api_url: str
 
     def __init__(
@@ -44,6 +48,9 @@ class CommandHandler:
         self.storage.logger = logger
         self.api_host = env_var_line("API_HOST_URL")
         self.gpio_api_url = urljoin(self.api_host, GPIO_API_URI)
+        self.gpio_schedule_api_url = urljoin(
+            self.api_host, GPIO_SCHEDULE_API_URI
+        )
         self.temp_api_url = urljoin(self.api_host, TEMP_IMG_URI)
         self.temp_val_url = urljoin(self.api_host, TEMP_VAL_URI)
         self.photo_event_api_url = urljoin(self.api_host, PHOTO_EVENTS_URI)
@@ -163,6 +170,47 @@ class CommandHandler:
                         if errors:
                             self.logger.error(
                                 f"Gpio group '{group}' api error: {errors}"
+                            )
+                        else:
+                            result = True
+                else:
+                    answer = await resp.text()
+                    msg = f"Api answer: {answer}"
+                    self.logger.error(msg)
+
+        return result
+
+    async def update_gpio_air_schedule(
+        self, intervals: typing.List[typing.Tuple[str, str]]
+    ) -> bool:
+        """Change schedule for air GPIO group via API.
+        """
+        pins = GPIO_CONFIG.get("air")
+        if not pins:
+            self.logger.warning("Unknown gpio group 'air'")
+            return False
+
+        request = {
+            "intervals": [
+                {"begin": begin, "end": end}
+                for begin, end in intervals
+            ],
+            "pins": list(pins),
+            "update": False
+        }
+        result = False
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                self.gpio_schedule_api_url, json=request
+            ) as resp:
+                if 200 <= resp.status < 300:
+                    data: dict = await resp.json()
+                    if isinstance(data, dict):
+                        errors = data.get("errors")
+                        if errors:
+                            self.logger.error(
+                                "Gpio schedule group 'air' "
+                                f"api error: {errors}"
                             )
                         else:
                             result = True

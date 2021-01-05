@@ -202,6 +202,31 @@ async def gpio_api_off(message: types.Message):
         await message.answer(NOT_ACCESS_ERROR)
 
 
+@dp.message_handler(commands="air-time")
+async def gpio_api_air_time(message: types.Message):
+    accepted = await handler.access(message.from_user)
+    if accepted:
+        intervals = (message.get_args() or "").strip().lower().split()
+        data = []
+        for line in intervals:
+            if line and "-" in line:
+                row = line.split("-")
+                if len(row) == 2:
+                    begin, end = row
+                    if len(begin) == len(end):
+                        data.append((begin, end))
+
+        changed = await handler.update_gpio_air_schedule(data)
+        if changed:
+            msg = "New air GPIO group schedule"
+        else:
+            msg = f"Can't change GPIO schedule for intervals {data}"
+
+        await message.answer(msg)
+    else:
+        await message.answer(NOT_ACCESS_ERROR)
+
+
 @dp.message_handler()
 async def make_answer(message: types.Message):
     """Single enter point.

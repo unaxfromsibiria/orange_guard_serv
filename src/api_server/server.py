@@ -178,13 +178,14 @@ async def gpio_watcher(state: dict):
             begin = datetime.combine(day, begin_time)
             end = datetime.combine(day, end_time)
             if begin <= now <= end:
-                if pin not in off_pins:
-                    on_pins.append(pin)
+                on_pins.append(pin)
             else:
                 off_pins.append(pin)
 
         if off_pins:
             for pin in off_pins:
+                if pin in on_pins:
+                    continue
                 if not state["pins"][pin]:
                     continue
 
