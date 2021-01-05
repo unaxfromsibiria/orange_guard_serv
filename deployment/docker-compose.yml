@@ -16,6 +16,7 @@ services:
       - TEMP_ALERT_DELTA=2
       - STATE_DATA_FILE=/opt/data/state.json
       - API_HOST_URL=${API_HOST_URL}
+      - GPIO_CONFIG=${GPIO_CONFIG}
     networks:
       private_net:
         ipv4_address: 10.11.1.11

@@ -158,6 +158,50 @@ async def make_event_subscription_answer(message: types.Message):
         await message.answer(NOT_ACCESS_ERROR)
 
 
+@dp.message_handler(commands="start")
+async def gpio_api_on(message: types.Message):
+    accepted = await handler.access(message.from_user)
+    if accepted:
+        args = (message.get_args() or "").strip().lower().split()
+        group = ""
+        delay = 600
+        if len(args) == 1:
+            group, *_ = args
+        elif len(args) == 2:
+            group, delay = args
+            delay = int(delay) * 60
+
+        changed = await handler.update_gpio_state(group, True, delay)
+        if changed:
+            msg = f"Changed GPIO group '{group}'' for {delay} seconds"
+        else:
+            msg = f"Can't change GPIO group '{group}'"
+
+        await message.answer(msg)
+    else:
+        await message.answer(NOT_ACCESS_ERROR)
+
+
+@dp.message_handler(commands="off")
+async def gpio_api_off(message: types.Message):
+    accepted = await handler.access(message.from_user)
+    if accepted:
+        args = (message.get_args() or "").strip().lower().split()
+        group = ""
+        if len(args) >= 1:
+            group, *_ = args
+
+        changed = await handler.update_gpio_state(group, False)
+        if changed:
+            msg = f"Turned off GPIO group '{group}'"
+        else:
+            msg = f"Can't change GPIO group '{group}'"
+
+        await message.answer(msg)
+    else:
+        await message.answer(NOT_ACCESS_ERROR)
+
+
 @dp.message_handler()
 async def make_answer(message: types.Message):
     """Single enter point.
