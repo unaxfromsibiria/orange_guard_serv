@@ -81,17 +81,22 @@ class CommandHandler:
         """
         data = None
         msg = ""
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                self.temp_api_url, json={"begin": begin, "end": end}
-            ) as resp:
-                if 200 <= resp.status < 300:
-                    data = await resp.read()
-                    msg = f"Temperature of period {begin}..{end}"
-                else:
-                    answer = await resp.text()
-                    msg = f"Api answer: {answer}"
-                    self.logger.error(msg)
+        url = self.temp_api_url
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, json={"begin": begin, "end": end}
+                ) as resp:
+                    if 200 <= resp.status < 300:
+                        data = await resp.read()
+                        msg = f"Temperature of period {begin}..{end}"
+                    else:
+                        answer = await resp.text()
+                        msg = f"Api answer: {answer}"
+                        self.logger.error(msg)
+
+        except Exception as err:
+            self.logger.error(f"Api {url} error: {err}")
 
         return msg, data
 
@@ -99,23 +104,28 @@ class CommandHandler:
         """Read events from photo detection api.
         """
         result = []
-        async with aiohttp.ClientSession() as session:
-            async with session.get(self.photo_event_api_url) as resp:
-                if 200 <= resp.status < 300:
-                    data: dict = await resp.json()
-                    if isinstance(data, dict):
-                        values: dict = data.get("data")
-                        if values and isinstance(values, dict):
-                            result.extend(
-                                "{}: {}".format(
-                                    dt[:19], score
+        url = self.photo_event_api_url
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if 200 <= resp.status < 300:
+                        data: dict = await resp.json()
+                        if isinstance(data, dict):
+                            values: dict = data.get("data")
+                            if values and isinstance(values, dict):
+                                result.extend(
+                                    "{}: {}".format(
+                                        dt[:19], score
+                                    )
+                                    for dt, score in values.items()
                                 )
-                                for dt, score in values.items()
-                            )
-                else:
-                    answer = await resp.text()
-                    msg = f"Api answer: {answer}"
-                    self.logger.error(msg)
+                    else:
+                        answer = await resp.text()
+                        msg = f"Api answer: {answer}"
+                        self.logger.error(msg)
+
+        except Exception as err:
+            self.logger.error(f"Api {url} error: {err}")
 
         return result
 
@@ -123,23 +133,28 @@ class CommandHandler:
         """Read events from photo detection api.
         """
         result = None
-        async with aiohttp.ClientSession() as session:
-            async with session.get(self.temp_val_url) as resp:
-                if 200 <= resp.status < 300:
-                    data: dict = await resp.json()
-                    if isinstance(data, dict):
-                        temperature: str = data.get("temperature") or ""
-                        if temperature:
-                            try:
-                                val, *_ = temperature.split()
-                                result = float(val)
-                            except (ValueError, TypeError):
-                                pass
+        url = self.temp_val_url
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if 200 <= resp.status < 300:
+                        data: dict = await resp.json()
+                        if isinstance(data, dict):
+                            temperature: str = data.get("temperature") or ""
+                            if temperature:
+                                try:
+                                    val, *_ = temperature.split()
+                                    result = float(val)
+                                except (ValueError, TypeError):
+                                    pass
 
-                else:
-                    answer = await resp.text()
-                    msg = f"Api answer: {answer}"
-                    self.logger.error(msg)
+                    else:
+                        answer = await resp.text()
+                        msg = f"Api answer: {answer}"
+                        self.logger.error(msg)
+
+        except Exception as err:
+            self.logger.error(f"Api {url} error: {err}")
 
         return result
 
@@ -159,24 +174,27 @@ class CommandHandler:
             "pins": list(pins)
         }
         result = False
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                self.gpio_api_url, json=request
-            ) as resp:
-                if 200 <= resp.status < 300:
-                    data: dict = await resp.json()
-                    if isinstance(data, dict):
-                        errors = data.get("errors")
-                        if errors:
-                            self.logger.error(
-                                f"Gpio group '{group}' api error: {errors}"
-                            )
-                        else:
-                            result = True
-                else:
-                    answer = await resp.text()
-                    msg = f"Api answer: {answer}"
-                    self.logger.error(msg)
+        url = self.gpio_api_url
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=request) as resp:
+                    if 200 <= resp.status < 300:
+                        data: dict = await resp.json()
+                        if isinstance(data, dict):
+                            errors = data.get("errors")
+                            if errors:
+                                self.logger.error(
+                                    f"Gpio group '{group}' api error: {errors}"
+                                )
+                            else:
+                                result = True
+                    else:
+                        answer = await resp.text()
+                        msg = f"Api answer: {answer}"
+                        self.logger.error(msg)
+
+        except Exception as err:
+            self.logger.error(f"Api {url} error: {err}")
 
         return result
 
@@ -199,25 +217,28 @@ class CommandHandler:
             "update": False
         }
         result = False
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                self.gpio_schedule_api_url, json=request
-            ) as resp:
-                if 200 <= resp.status < 300:
-                    data: dict = await resp.json()
-                    if isinstance(data, dict):
-                        errors = data.get("errors")
-                        if errors:
-                            self.logger.error(
-                                "Gpio schedule group 'air' "
-                                f"api error: {errors}"
-                            )
-                        else:
-                            result = True
-                else:
-                    answer = await resp.text()
-                    msg = f"Api answer: {answer}"
-                    self.logger.error(msg)
+        url = self.gpio_schedule_api_url
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=request) as resp:
+                    if 200 <= resp.status < 300:
+                        data: dict = await resp.json()
+                        if isinstance(data, dict):
+                            errors = data.get("errors")
+                            if errors:
+                                self.logger.error(
+                                    "Gpio schedule group 'air' "
+                                    f"api error: {errors}"
+                                )
+                            else:
+                                result = True
+                    else:
+                        answer = await resp.text()
+                        msg = f"Api answer: {answer}"
+                        self.logger.error(msg)
+
+        except Exception as err:
+            self.logger.error(f"Api {url} error: {err}")
 
         return result
 

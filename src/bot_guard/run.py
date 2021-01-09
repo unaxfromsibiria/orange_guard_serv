@@ -42,14 +42,15 @@ async def event_watcher(logger: logging.Logger):
         if chat_ids:
             # photo changes
             logger.info(f"Check events for {len(chat_ids)} subscription")
-            events = await handler.get_photo_events()
             content = []
+            events = await handler.get_photo_events()
             if events:
                 msg = "Events detected by photos at: \n{}".format(
                     "\n".join(events)
                 )
                 content.append(msg)
                 logger.warning(f"Photo events: {len(events)}")
+
             # temperature alert
             temperature = await handler.get_temperature()
             if temperature is not None:
@@ -63,12 +64,13 @@ async def event_watcher(logger: logging.Logger):
                     delta = abs(prev_temperature - temperature)
                     if delta >= TEMP_ALERT_DELTA:
                         msg = (
-                            f"Temperature changes too fast: {prev_temperature}"
-                            f" -> {temperature}"
+                            "Temperature changes too fast: "
+                            f"{prev_temperature} -> {temperature}"
                         )
                         content.append(msg)
                         logger.warning(
-                            f"temperature {prev_temperature} -> {temperature}"
+                            "temperature "
+                            f"{prev_temperature} -> {temperature}"
                         )
 
             # send
