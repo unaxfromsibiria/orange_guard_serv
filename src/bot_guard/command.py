@@ -5,6 +5,7 @@ from urllib.parse import urljoin
 import aiohttp
 from aiogram.types.user import User
 
+from .helpers import env_var_bool
 from .helpers import env_var_line
 from .helpers import env_var_list
 from .storage import BaseStorage
@@ -12,6 +13,9 @@ from .storage import BaseStorage
 TEMP_IMG_URI = env_var_line("TEMP_IMG_URI") or "t/history.jpeg"
 TEMP_VAL_URI = env_var_line("TEMP_VAL_URI") or "t"
 GPIO_API_URI = env_var_line("GPIO_API_URI") or "gpio"
+LAST_IMG_URI = env_var_line("LAST_IMG_URI") or "last_img.png"
+NO_LAST_IMG = env_var_bool("NO_LAST_IMG")
+
 GPIO_SCHEDULE_API_URI = (
     env_var_line("GPIO_SCHEDULE_API_URI") or "gpio-schedule"
 )
@@ -37,6 +41,7 @@ class CommandHandler:
     gpio_api_url: str
     gpio_schedule_api_url: str
     photo_event_api_url: str
+    last_img_url: str
 
     def __init__(
         self,
@@ -54,6 +59,7 @@ class CommandHandler:
         self.temp_api_url = urljoin(self.api_host, TEMP_IMG_URI)
         self.temp_val_url = urljoin(self.api_host, TEMP_VAL_URI)
         self.photo_event_api_url = urljoin(self.api_host, PHOTO_EVENTS_URI)
+        self.last_img_url = urljoin(self.api_host, LAST_IMG_URI)
 
     async def execute(
         self, from_client: str, message: str
@@ -99,6 +105,28 @@ class CommandHandler:
             self.logger.error(f"Api {url} error: {err}")
 
         return msg, data
+
+    async def last_image(self) -> typing.Optional[bytes]:
+        """Last image from API side.
+        """
+        data = None
+        if NO_LAST_IMG:
+            return data
+
+        url = self.last_img_url
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if 200 <= resp.status < 300:
+                        data: bytes = await resp.read()
+                    else:
+                        answer = await resp.text()
+                        self.logger.error(f"Api answer: {answer}")
+
+        except Exception as err:
+            self.logger.error(f"Api {url} error: {err}")
+
+        return data
 
     async def get_photo_events(self) -> typing.List[str]:
         """Read events from photo detection api.

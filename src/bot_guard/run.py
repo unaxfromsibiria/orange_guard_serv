@@ -43,6 +43,7 @@ async def event_watcher(logger: logging.Logger):
             # photo changes
             logger.info(f"Check events for {len(chat_ids)} subscription")
             content = []
+            data = None
             events = await handler.get_photo_events()
             if events:
                 msg = "Events detected by photos at: \n{}".format(
@@ -50,6 +51,7 @@ async def event_watcher(logger: logging.Logger):
                 )
                 content.append(msg)
                 logger.warning(f"Photo events: {len(events)}")
+                data = await handler.last_image()
 
             # temperature alert
             temperature = await handler.get_temperature()
@@ -77,7 +79,12 @@ async def event_watcher(logger: logging.Logger):
             if content:
                 msg = "\n".join(content)
                 for chat_id in chat_ids:
-                    await bot.send_message(chat_id=chat_id, text=msg)
+                    if data:
+                        await bot.send_photo(
+                            chat_id=chat_id, photo=data, caption=msg
+                        )
+                    else:
+                        await bot.send_message(chat_id=chat_id, text=msg)
 
 
 async def setup_loop(dispatcher):

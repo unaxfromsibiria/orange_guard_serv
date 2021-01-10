@@ -23,10 +23,12 @@ from .helpers import env_var_line
 from .helpers import env_var_list
 from .helpers import env_var_time
 from .img import compare_areas
+from .img import get_image_last_area
 from .img import get_photo_area
 from .img import get_png_photo
 from .img import png_img_to_base64
 from .img import png_img_to_buffer
+from .img import save_last_area
 from .img import table_to_image
 from .network_check import check
 from .temperature import TEMPERATURE_READ_INTERVAL
@@ -57,7 +59,7 @@ DEFAULT_WATCH_ITER_TIME = 1
 GPIO_STATA_OFF = True
 GPIO_STATA_ON = False
 
-logger = logging.getLogger(env_var_line("LOGGER") or "uvicorn.asgi")
+logger = logging.getLogger(env_var_line("LOGGER") or "uvicorn.error")
 
 
 class ServerApp(FastAPI):
@@ -110,6 +112,10 @@ async def watch_image_changes(state: dict, pool: ProcessPoolExecutor):
             if prop < IMG_COMPARE_LIMIT:
                 logger.warning(f"Camera changes detected {prop}")
                 state["image_events"].append((prop, current_datetime()))
+                try:
+                    save_last_area(img)
+                except Exception as err:
+                    logger.error(f"Image area save error: {err}")
 
         await asyncio.sleep(CAMERA_CHECK_INTERVAL)
 
@@ -351,6 +357,28 @@ async def make_photo():
         )
     else:
         result = HTTPException(status_code=404, detail="Camera not available")
+
+    return result
+
+
+@app.get("/last_img.png")
+async def last_img():
+    """Photo from last time detection.
+    """
+    try:
+        img = get_image_last_area()
+    except Exception as err:
+        img = None
+        logger.error(f"Read last image error: {err}")
+
+    if img:
+        result = StreamingResponse(
+            png_img_to_buffer(img), media_type="image/png"
+        )
+    else:
+        result = HTTPException(
+            status_code=404, detail="Last image doesn't exists"
+        )
 
     return result
 

@@ -18,6 +18,9 @@ from .helpers import env_var_time
 DEVICE = env_var_line("WEBCAM_DEVICE") or "video0"
 RESOLUTION = env_var_line("WEBCAM_RESOLUTION") or "640x480"
 IMG_W, ING_H = map(int, RESOLUTION.split("x"))
+PATH_ACTUAL_IMG = (
+    env_var_line("PATH_ACTUAL_IMG") or "/tmp/last_img.png"
+)
 BLUR_RAD = IMG_W // 100
 
 NETWORK_CHECK_TIMEOUT = env_var_time("NETWORK_CHECK_TIMEOUT") or 600
@@ -117,3 +120,15 @@ def compare_areas(source_area: np.array, new_area: np.array) -> float:
 
     over = sum(1 if x < 0.014 else 0 for x in std)
     return round(over / len(std) * 100)
+
+
+def save_last_area(img: np.array):
+    """Save image matrix.
+    """
+    plt.imsave(PATH_ACTUAL_IMG, 1 - img, cmap="Greys")
+
+
+def get_image_last_area() -> Image:
+    """Read lasr image.
+    """
+    return img_open(PATH_ACTUAL_IMG)
