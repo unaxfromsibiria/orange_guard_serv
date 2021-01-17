@@ -99,11 +99,16 @@ async def watch_image_changes(state: dict, pool: ProcessPoolExecutor):
     loop = asyncio.get_running_loop()
     while state.get("active"):
         try:
-            img = await loop.run_in_executor(pool, get_photo_area)
+            img, out_data = await loop.run_in_executor(pool, get_photo_area)
         except Exception as err:
             img = None
             logger.error("Photo getting error: %s", err)
             continue
+        else:
+            if img is None:
+                logger.warning(
+                    "Photo getting problem: %s", " ".join(out_data)
+                )
 
         prev_img = state.get("last_image")
         state["last_image"] = img
@@ -350,7 +355,7 @@ async def make_photo():
     """Photo from web camera.
     """
     loop = asyncio.get_running_loop()
-    img = await loop.run_in_executor(app.ps_executor, get_png_photo)
+    img, _ = await loop.run_in_executor(app.ps_executor, get_png_photo)
     if img:
         result = StreamingResponse(
             png_img_to_buffer(img), media_type="image/png"
@@ -387,7 +392,7 @@ async def last_img():
 async def make_json_photo():
     """Photo from web camera in base64.
     """
-    img = get_png_photo()
+    img, _ = get_png_photo()
     if img:
         result = {"image": png_img_to_base64(img)}
     else:

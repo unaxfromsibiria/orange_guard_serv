@@ -8,7 +8,9 @@ from time import time as current_time
 
 TARGET_CAHCE_FILEPATH = "/tmp/icmp_nodes.json"
 
-tracepath_cmd = ["/usr/bin/traceroute", "-I", "-n", "-q", "1", ""]
+tracepath_cmd = [
+    "/usr/bin/traceroute", "-I", "-n", "-q", "1", "-w", "2,2,2", ""
+]
 
 TARGETS = [
     # public-dns.info

@@ -1,6 +1,7 @@
 import base64
 import io
 import os
+import subprocess
 import typing
 import uuid
 
@@ -30,36 +31,52 @@ ax.fmt_xdata = mdates.DateFormatter("%Y-%m-%d")
 ax.grid(True)
 
 
-def get_png_photo(png_factor: int = 9) -> typing.Optional[Image]:
+def get_png_photo(png_factor: int = 9) -> typing.Tuple[
+    typing.Optional[Image], typing.List[str]
+]:
     """Get image from web camera.
     apt-get install fswebcam
     """
     img_path = f"/tmp/{uuid.uuid4().hex}.png"
-    os.system(
-        f"fswebcam -r {RESOLUTION} --no-banner "
-        f"--device /dev/{DEVICE} --png {png_factor} {img_path}"
+    result = subprocess.run(
+        [
+            "/usr/bin/fswebcam",
+            "-r",
+            RESOLUTION,
+            "--no-banner",
+            "--device",
+            f"/dev/{DEVICE}",
+            "--png",
+            f"{png_factor}",
+            img_path,
+        ],
+        capture_output=True,
+        text=True
     )
+    lines = result.stdout.split("\n")
     if os.path.exists(img_path):
         image = img_open(img_path)
         os.remove(img_path)
     else:
         image = None
 
-    return image
+    return image, lines
 
 
 def get_photo_area(
     png_factor: int = 9,
     img_filter: BoxBlur = BoxBlur(BLUR_RAD)
-) -> typing.Optional[np.array]:
+) -> typing.Tuple[
+    typing.Optional[np.array], typing.List[str]
+]:
     """Get image from web camera.
     """
-    image = get_png_photo(png_factor)
+    image, data = get_png_photo(png_factor)
     if image:
         arr = np.asarray(image.filter(img_filter)) / 255
-        return np.mean(arr, axis=2)
+        return np.mean(arr, axis=2), data
 
-    return None
+    return None, data
 
 
 def png_img_to_buffer(img: Image) -> io.BytesIO:
