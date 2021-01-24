@@ -104,11 +104,16 @@ async def watch_image_changes(state: dict, pool: ProcessPoolExecutor):
             img = None
             logger.error("Photo getting error: %s", err)
             continue
+
+        if img:
+            try:
+                save_last_area(img)
+            except Exception as err:
+                logger.error(f"Image area save error: {err}")
         else:
-            if img is None:
-                logger.warning(
-                    "Photo getting problem: %s", " ".join(out_data)
-                )
+            logger.warning(
+                "Photo getting problem: %s", " ".join(out_data)
+            )
 
         prev_img = state.get("last_image")
         state["last_image"] = img
@@ -117,10 +122,6 @@ async def watch_image_changes(state: dict, pool: ProcessPoolExecutor):
             if prop < IMG_COMPARE_LIMIT:
                 logger.warning(f"Camera changes detected {prop}")
                 state["image_events"].append((prop, current_datetime()))
-                try:
-                    save_last_area(img)
-                except Exception as err:
-                    logger.error(f"Image area save error: {err}")
 
         await asyncio.sleep(CAMERA_CHECK_INTERVAL)
 

@@ -142,7 +142,8 @@ def compare_areas(source_area: np.array, new_area: np.array) -> float:
 def save_last_area(img: np.array):
     """Save image matrix.
     """
-    plt.imsave(PATH_ACTUAL_IMG, 1 - img, cmap="Greys")
+    img = ((1 - img) * 255).astype("uint8")
+    plt.imsave(PATH_ACTUAL_IMG, img, cmap="Greys")
 
 
 def get_image_last_area() -> Image:
