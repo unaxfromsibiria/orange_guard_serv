@@ -18,6 +18,7 @@ from .helpers import env_var_time
 from .storage import DataStorage
 
 WATCH_INTERVAL = env_var_time("WATCH_INTERVAL") or 300
+SERVICE_TIMEOUT = 0.1
 TEMP_ALERT_DELTA = env_var_float("TEMP_ALERT_DELTA") or 1
 token = env_var_line("BOT_TOKEN")
 # # # #
@@ -36,55 +37,70 @@ handler = CommandHandler(
 async def event_watcher(logger: logging.Logger):
     """Check the API in device to send a notification for users.
     """
+    content = []
     while status.get("active"):
         await asyncio.sleep(WATCH_INTERVAL)
+        data = None
         chat_ids = handler.storage.subscription
-        if chat_ids:
-            # photo changes
-            logger.info(f"Check events for {len(chat_ids)} subscription")
-            content = []
-            data = None
-            events = await handler.get_photo_events()
-            if events:
-                msg = "Events detected by photos at: \n{}".format(
-                    "\n".join(events)
-                )
-                content.append(msg)
-                logger.warning(f"Photo events: {len(events)}")
-                data = await handler.last_image()
+        if not chat_ids:
+            continue
 
-            # temperature alert
-            temperature = await handler.get_temperature()
-            if temperature is not None:
-                prev_temperature = handler.storage.get("temperature")
-                handler.storage.set("temperature", temperature)
-                if prev_temperature is None:
-                    logger.info(
-                        f"New temperature value in storage {temperature}"
+        # photo changes
+        logger.info(f"Check events for {len(chat_ids)} subscription")
+        events = await handler.get_photo_events()
+        if events:
+            msg = "Events detected by photos at: \n{}".format(
+                "\n".join(events)
+            )
+            content.append(msg)
+            logger.warning(f"Photo events: {len(events)}")
+            data = await handler.last_image()
+
+        # temperature alert
+        temperature = await handler.get_temperature()
+        if temperature is not None:
+            prev_temperature = handler.storage.get("temperature")
+            handler.storage.set("temperature", temperature)
+            if prev_temperature is None:
+                logger.info(
+                    f"New temperature value in storage {temperature}"
+                )
+            else:
+                delta = abs(prev_temperature - temperature)
+                if delta >= TEMP_ALERT_DELTA:
+                    msg = (
+                        "Temperature changes too fast: "
+                        f"{prev_temperature} -> {temperature}"
+                    )
+                    content.append(msg)
+                    logger.warning(
+                        "temperature "
+                        f"{prev_temperature} -> {temperature}"
+                    )
+
+        # send
+        if content:
+            msg = "\n".join(content)
+            content.clear()
+            for chat_id in chat_ids:
+                if data:
+                    send_task = bot.send_photo(
+                        chat_id=chat_id, photo=data, caption=msg
                     )
                 else:
-                    delta = abs(prev_temperature - temperature)
-                    if delta >= TEMP_ALERT_DELTA:
-                        msg = (
-                            "Temperature changes too fast: "
-                            f"{prev_temperature} -> {temperature}"
-                        )
-                        content.append(msg)
-                        logger.warning(
-                            "temperature "
-                            f"{prev_temperature} -> {temperature}"
-                        )
+                    send_task = bot.send_message(
+                        chat_id=chat_id, text=msg
+                    )
 
-            # send
-            if content:
-                msg = "\n".join(content)
-                for chat_id in chat_ids:
-                    if data:
-                        await bot.send_photo(
-                            chat_id=chat_id, photo=data, caption=msg
-                        )
-                    else:
-                        await bot.send_message(chat_id=chat_id, text=msg)
+                try:
+                    await send_task
+                except Exception as err:
+                    logger.error(
+                        f"Send bot error to {chat_id}: {err}"
+                    )
+                    break
+                else:
+                    await asyncio.sleep(SERVICE_TIMEOUT)
 
 
 async def setup_loop(dispatcher):
