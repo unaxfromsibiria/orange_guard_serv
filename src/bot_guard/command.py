@@ -14,6 +14,7 @@ TEMP_IMG_URI = env_var_line("TEMP_IMG_URI") or "t/history.jpeg"
 TEMP_VAL_URI = env_var_line("TEMP_VAL_URI") or "t"
 GPIO_API_URI = env_var_line("GPIO_API_URI") or "gpio"
 LAST_IMG_URI = env_var_line("LAST_IMG_URI") or "last_img.png"
+PHOTO_URI = env_var_line("PHOTO_URI") or "photo.png"
 NO_LAST_IMG = env_var_bool("NO_LAST_IMG")
 
 GPIO_SCHEDULE_API_URI = (
@@ -41,6 +42,7 @@ class CommandHandler:
     gpio_api_url: str
     gpio_schedule_api_url: str
     photo_event_api_url: str
+    photo_api_url: str
     last_img_url: str
 
     def __init__(
@@ -59,6 +61,7 @@ class CommandHandler:
         self.temp_api_url = urljoin(self.api_host, TEMP_IMG_URI)
         self.temp_val_url = urljoin(self.api_host, TEMP_VAL_URI)
         self.photo_event_api_url = urljoin(self.api_host, PHOTO_EVENTS_URI)
+        self.photo_api_url = urljoin(self.api_host, PHOTO_URI)
         self.last_img_url = urljoin(self.api_host, LAST_IMG_URI)
 
     async def execute(
@@ -105,6 +108,25 @@ class CommandHandler:
             self.logger.error(f"Api {url} error: {err}")
 
         return msg, data
+
+    async def make_photo(self) -> typing.Optional[bytes]:
+        """Get photo from API side.
+        """
+        data = None
+        url = self.photo_api_url
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if 200 <= resp.status < 300:
+                        data: bytes = await resp.read()
+                    else:
+                        answer = await resp.text()
+                        self.logger.error(f"Api answer: {answer}")
+
+        except Exception as err:
+            self.logger.error(f"Api {url} error: {err}")
+
+        return data
 
     async def last_image(self) -> typing.Optional[bytes]:
         """Last image from API side.

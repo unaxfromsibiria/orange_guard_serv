@@ -164,6 +164,20 @@ async def make_temp_img_answer(message: types.Message):
         await message.answer(NOT_ACCESS_ERROR)
 
 
+@dp.message_handler(commands="photo")
+async def make_photo_img_answer(message: types.Message):
+    accepted = await handler.access(message.from_user)
+    if accepted:
+        img_data = await handler.make_photo()
+        if img_data:
+            await message.reply_photo(img_data, caption="")
+        else:
+            await message.answer("a problem to get photo")
+
+    else:
+        await message.answer(NOT_ACCESS_ERROR)
+
+
 @dp.message_handler(commands="events")
 async def make_event_subscription_answer(message: types.Message):
     accepted = await handler.access(message.from_user)
