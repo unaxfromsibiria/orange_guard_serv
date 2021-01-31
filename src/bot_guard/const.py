@@ -1,5 +1,6 @@
 HELP_MSG = """Commands:
-/adduser <username> - add telegram user
+/adduser <username or id> - add telegram user
+/deluser <username or id> - delete access for telegram user
 /temp <begin date> <end date or empity> - temperature in period [begin..end] or [begin..now]
 /events <on/off> - add/remove me to events subscription
 /photo - get photo at this moment

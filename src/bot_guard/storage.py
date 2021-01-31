@@ -67,6 +67,15 @@ class BaseStorage:
         self.data["users"] = sorted(data)
         self.sync()
 
+    def delete_user(self, user: str):
+        """Delete user.
+        """
+        data = set(self.data["users"])
+        if user in data:
+            data.remove(user)
+            self.data["users"] = sorted(data)
+            self.sync()
+
     @property
     def subscription(self) -> list:
         return sorted(set(

@@ -74,7 +74,7 @@ class CommandHandler:
     async def access(self, user: User) -> bool:
         """Check user access.
         """
-        return user.username in self.storage.users
+        return str(user.username or user.id) in self.storage.users
 
     async def add_user(self, user: str) -> bool:
         """Add user.
@@ -82,6 +82,14 @@ class CommandHandler:
         n = len(self.storage.users)
         self.storage.add_user(user)
         return n < len(self.storage.users)
+
+    async def del_user(self, user: str) -> bool:
+        """Delete user.
+        """
+        n = len(self.storage.users)
+        self.storage.delete_user(user)
+        return n > len(self.storage.users)
+
 
     async def temperature_history(
         self, begin: str, end: str

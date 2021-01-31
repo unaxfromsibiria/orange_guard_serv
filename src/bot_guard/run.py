@@ -111,11 +111,12 @@ async def setup_loop(dispatcher):
 
 @dp.message_handler(commands="help")
 async def make_help_answer(message: types.Message):
-    accepted = await handler.access(message.from_user)
+    user = message.from_user
+    accepted = await handler.access(user)
     if accepted:
         await message.answer(HELP_MSG)
     else:
-        user = f"{message.from_user.full_name}({message.from_user.id})"
+        user = f"'{user.username}' {user.full_name}({user.id})"
         handler.logger.warning(f"User {user} asked 'help'")
         await message.answer(NOT_ACCESS_ERROR)
 
@@ -132,6 +133,23 @@ async def make_adduser_answer(message: types.Message):
         is_new = "yes" if is_new else "no"
         await message.answer(
             f"New user '{new_user}' (is new: {is_new})"
+        )
+    else:
+        await message.answer(NOT_ACCESS_ERROR)
+
+
+@dp.message_handler(commands="deluser")
+async def make_deluser_answer(message: types.Message):
+    accepted = await handler.access(message.from_user)
+    if accepted:
+        new_user = message.get_args().strip().strip("@")
+        is_del = False
+        if new_user:
+            is_del = await handler.del_user(new_user)
+
+        is_del = "yes" if is_del else "no"
+        await message.answer(
+            f"User '{new_user}' deleted: {is_del}"
         )
     else:
         await message.answer(NOT_ACCESS_ERROR)
