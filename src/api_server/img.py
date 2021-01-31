@@ -23,6 +23,7 @@ PATH_ACTUAL_IMG = (
     env_var_line("PATH_ACTUAL_IMG") or "/tmp/last_img.png"
 )
 BLUR_RAD = IMG_W // 100
+IMG_BLACK_LIMIT = 4
 
 NETWORK_CHECK_TIMEOUT = env_var_time("NETWORK_CHECK_TIMEOUT") or 600
 fig, ax = plt.subplots()
@@ -143,6 +144,8 @@ def save_last_area(img: np.array):
     """Save image matrix.
     """
     img = ((1 - img) * 255).astype("uint8")
+    img[img < IMG_BLACK_LIMIT] = 0
+    img[img > (255 - IMG_BLACK_LIMIT)] = 255
     plt.imsave(PATH_ACTUAL_IMG, img, cmap="Greys")
 
 
