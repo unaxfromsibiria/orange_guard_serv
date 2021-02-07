@@ -71,10 +71,13 @@ class CommandHandler:
         """
         return "Unknown message type", None
 
-    async def access(self, user: User) -> bool:
+    async def access(self, user: typing.Union[User, str]) -> bool:
         """Check user access.
         """
-        return str(user.username or user.id) in self.storage.users
+        if not isinstance(user, str):
+            user = str(user.username or user.id)
+
+        return user in self.storage.users
 
     async def add_user(self, user: str) -> bool:
         """Add user.

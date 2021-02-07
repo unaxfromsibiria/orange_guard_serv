@@ -77,30 +77,45 @@ class BaseStorage:
             self.sync()
 
     @property
-    def subscription(self) -> list:
-        return sorted(set(
-            self.data.get("subscription") or []
-        ))
+    def subscription(self) -> typing.List[typing.Tuple[str, int]]:
+        return [
+            tuple(item)
+            for item in self.data.get("subscription") or []
+            if item and isinstance(item, (list, tuple)) and len(item) == 2
+        ]
 
-    def subscription_add(self, chat_id: int):
+    def subscription_add(self, user: str, chat_id: int):
         """Add chat id to subscription.
         """
-        chat_id_set = set(self.data.get("subscription") or [])
-        n = len(chat_id_set)
-        chat_id_set.add(chat_id)
-        if n < len(chat_id_set):
+        subscription_set = set(
+            tuple(item)
+            for item in self.data.get("subscription") or []
+            if item and isinstance(item, (list, tuple)) and len(item) == 2
+        )
+
+        n = len(subscription_set)
+        subscription_set.add((user, chat_id))
+        if n < len(subscription_set):
             self.logger.info(f"new chat {chat_id} in events subscription")
-            self.data["subscription"] = sorted(chat_id_set)
+            self.data["subscription"] = sorted(subscription_set)
             self.sync(force=True)
 
     def subscription_remove(self, chat_id: int):
         """Remove chat id from subscription.
         """
-        chat_id_set = set(self.data.get("subscription") or [])
-        if chat_id in chat_id_set:
-            chat_id_set.remove(chat_id)
-            self.data["subscription"] = sorted(chat_id_set)
-            self.sync()
+        subscription_set = set(
+            tuple(item)
+            for item in self.data.get("subscription") or []
+            if item and isinstance(item, (list, tuple)) and len(item) == 2
+        )
+        n = len(subscription_set)
+
+        self.data["subscription"] = sorted(
+            (user, in_ch)
+            for user, in_ch in subscription_set
+            if in_ch != chat_id
+        )
+        self.sync(force=len(self.data["subscription"]) != n)
 
 
 class DataStorage(BaseStorage):
@@ -129,7 +144,6 @@ class DataStorage(BaseStorage):
 
             if isinstance(prev_data, dict):
                 prev_users = prev_data.get("users") or []
-                prev_subscription = prev_data.get("subscription") or []
                 prev_values = prev_data.get("values") or {}
                 prev_values.update(self.data["values"])
                 self.data["values"] = prev_values
@@ -137,10 +151,6 @@ class DataStorage(BaseStorage):
                     prev_users = set(prev_users)
                     prev_users.update(self.data.get("users") or [])
                     self.data["users"] = sorted(prev_users)
-                if prev_subscription:
-                    prev_subscription = set(prev_subscription)
-                    prev_subscription.update(self.data.get("subscription") or [])
-                    self.data["subscription"] = sorted(prev_subscription)
 
             self.last_update = datetime.now()
             curr_state = self.data["state"] = uuid.uuid4().hex

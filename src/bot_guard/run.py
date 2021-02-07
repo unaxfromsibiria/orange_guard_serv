@@ -41,12 +41,12 @@ async def event_watcher(logger: logging.Logger):
     while status.get("active"):
         await asyncio.sleep(WATCH_INTERVAL)
         data = None
-        chat_ids = handler.storage.subscription
-        if not chat_ids:
+        subscription = handler.storage.subscription
+        if not subscription:
             continue
 
         # photo changes
-        logger.info(f"Check events for {len(chat_ids)} subscription")
+        logger.info(f"Check events for {len(subscription)} subscription")
         events = await handler.get_photo_events()
         if events:
             msg = "Events detected by photos at: \n{}".format(
@@ -82,7 +82,14 @@ async def event_watcher(logger: logging.Logger):
         if content:
             msg = "\n".join(content)
             content.clear()
-            for chat_id in chat_ids:
+            for user, chat_id in subscription:
+                accepted = await handler.access(user)
+                if not accepted:
+                    logger.warning(
+                        f"User {user} is not allow for event"
+                    )
+                    continue
+
                 if data:
                     send_task = bot.send_photo(
                         chat_id=chat_id, photo=data, caption=msg
@@ -198,12 +205,15 @@ async def make_photo_img_answer(message: types.Message):
 
 @dp.message_handler(commands="events")
 async def make_event_subscription_answer(message: types.Message):
-    accepted = await handler.access(message.from_user)
+    user = message.from_user
+    accepted = await handler.access(user)
     if accepted:
         cmd = (message.get_args() or "").strip().lower()
         if cmd in ("on", ""):
             msg = "turned on"
-            handler.storage.subscription_add(message.chat.id)
+            handler.storage.subscription_add(
+                str(user.username or user.id), message.chat.id
+            )
         elif cmd == "off":
             msg = "turned off"
             handler.storage.subscription_remove(message.chat.id)
