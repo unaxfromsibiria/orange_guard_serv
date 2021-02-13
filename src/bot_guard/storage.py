@@ -65,7 +65,7 @@ class BaseStorage:
         data = set(self.data["users"])
         data.add(user)
         self.data["users"] = sorted(data)
-        self.sync()
+        self.sync(force=True)
 
     def delete_user(self, user: str):
         """Delete user.
@@ -74,7 +74,7 @@ class BaseStorage:
         if user in data:
             data.remove(user)
             self.data["users"] = sorted(data)
-            self.sync()
+            self.sync(force=True)
 
     @property
     def subscription(self) -> typing.List[typing.Tuple[str, int]]:
@@ -135,6 +135,14 @@ class DataStorage(BaseStorage):
         """Sync data.
         """
         if force or (current_datetime() - DUMP_UPDATE_TIME > self.last_update):
+            if force:
+                try:
+                    with open(self.file_path, "w") as out_file:
+                        out_file.write(json.dumps(self.data))
+                except Exception as err:
+                    self.logger.error(f"File write '{self.file_path}': {err}")
+                    return
+
             prev_data = curr_data = None
             try:
                 with open(self.file_path) as in_file:

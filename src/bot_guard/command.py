@@ -5,6 +5,7 @@ from urllib.parse import urljoin
 import aiohttp
 from aiogram.types.user import User
 
+from .const import NOT_ACCESS_ERROR
 from .helpers import env_var_bool
 from .helpers import env_var_line
 from .helpers import env_var_list
@@ -63,6 +64,32 @@ class CommandHandler:
         self.photo_event_api_url = urljoin(self.api_host, PHOTO_EVENTS_URI)
         self.photo_api_url = urljoin(self.api_host, PHOTO_URI)
         self.last_img_url = urljoin(self.api_host, LAST_IMG_URI)
+
+    def access_check(self, method: typing.Callable) -> typing.Callable:
+        """Decorator for checking the access.
+        """
+        check_method = self.access
+        logger = self.logger
+
+        async def command_handler(*args, **kwargs) -> typing.Any:
+            """Wrapper of a command handler.
+            """
+            message = kwargs.get("message")
+            if not message:
+                message, *_ = args
+
+            user = message.from_user
+            accepted = await check_method(user)
+            if accepted:
+                await method(*args, **kwargs)
+            else:
+                logger.warning(
+                    f"User '{user.username}' {user.full_name}({user.id})"
+                    f" asked method '{method}'"
+                )
+                await message.answer(NOT_ACCESS_ERROR)
+
+        return command_handler
 
     async def execute(
         self, from_client: str, message: str

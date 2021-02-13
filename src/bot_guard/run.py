@@ -10,7 +10,6 @@ from aiogram import types
 
 from .command import CommandHandler
 from .const import HELP_MSG
-from .const import NOT_ACCESS_ERROR
 from .helpers import current_date
 from .helpers import env_var_float
 from .helpers import env_var_line
@@ -117,197 +116,161 @@ async def setup_loop(dispatcher):
 
 
 @dp.message_handler(commands="help")
-async def make_help_answer(message: types.Message):
-    user = message.from_user
-    accepted = await handler.access(user)
-    if accepted:
-        await message.answer(HELP_MSG)
-    else:
-        user = f"'{user.username}' {user.full_name}({user.id})"
-        handler.logger.warning(f"User {user} asked 'help'")
-        await message.answer(NOT_ACCESS_ERROR)
+@handler.access_check
+async def make_help_answer(message: types.Message, **kwargs):
+    await message.answer(HELP_MSG)
 
 
 @dp.message_handler(commands="adduser")
-async def make_adduser_answer(message: types.Message):
-    accepted = await handler.access(message.from_user)
-    if accepted:
-        new_user = message.get_args().strip().strip("@")
-        is_new = False
-        if new_user:
-            is_new = await handler.add_user(new_user)
+@handler.access_check
+async def make_adduser_answer(message: types.Message, **kwargs):
+    new_user = message.get_args().strip().strip("@")
+    is_new = False
+    if new_user:
+        is_new = await handler.add_user(new_user)
 
-        is_new = "yes" if is_new else "no"
-        await message.answer(
-            f"New user '{new_user}' (is new: {is_new})"
-        )
-    else:
-        await message.answer(NOT_ACCESS_ERROR)
+    is_new = "yes" if is_new else "no"
+    await message.answer(f"New user '{new_user}' (is new: {is_new})")
 
 
 @dp.message_handler(commands="deluser")
-async def make_deluser_answer(message: types.Message):
-    accepted = await handler.access(message.from_user)
-    if accepted:
-        new_user = message.get_args().strip().strip("@")
-        is_del = False
-        if new_user:
-            is_del = await handler.del_user(new_user)
+@handler.access_check
+async def make_deluser_answer(message: types.Message, **kwargs):
+    new_user = message.get_args().strip().strip("@")
+    is_del = False
+    if new_user:
+        is_del = await handler.del_user(new_user)
 
-        is_del = "yes" if is_del else "no"
-        await message.answer(
-            f"User '{new_user}' deleted: {is_del}"
-        )
-    else:
-        await message.answer(NOT_ACCESS_ERROR)
+    is_del = "yes" if is_del else "no"
+    await message.answer(
+        f"User '{new_user}' deleted: {is_del}"
+    )
 
 
 @dp.message_handler(commands="temp")
-async def make_temp_img_answer(message: types.Message):
-    accepted = await handler.access(message.from_user)
-    if accepted:
-        days = (message.get_args() or "").split()
-        begin = end = None
-        if days:
-            if len(days) == 2:
-                begin, end = days
-            elif len(days) == 1:
-                begin, *_ = days
+@handler.access_check
+async def make_temp_img_answer(message: types.Message, **kwargs):
+    days = (message.get_args() or "").split()
+    begin = end = None
+    if days:
+        if len(days) == 2:
+            begin, end = days
+        elif len(days) == 1:
+            begin, *_ = days
 
-        if end is None:
-            end = current_date().isoformat()
-        if begin is None:
-            begin = (current_date() - timedelta(30)).isoformat()
+    if end is None:
+        end = current_date().isoformat()
+    if begin is None:
+        begin = (current_date() - timedelta(30)).isoformat()
 
-        msg, img_data  = await handler.temperature_history(begin, end)
-        if img_data:
-            await message.reply_photo(img_data, caption=msg)
-        else:
-            await message.answer(msg)
-
+    msg, img_data  = await handler.temperature_history(begin, end)
+    if img_data:
+        await message.reply_photo(img_data, caption=msg)
     else:
-        await message.answer(NOT_ACCESS_ERROR)
+        await message.answer(msg)
 
 
 @dp.message_handler(commands="photo")
-async def make_photo_img_answer(message: types.Message):
-    accepted = await handler.access(message.from_user)
-    if accepted:
-        img_data = await handler.make_photo()
-        if img_data:
-            await message.reply_photo(img_data, caption="")
-        else:
-            await message.answer("a problem to get photo")
-
+@handler.access_check
+async def make_photo_img_answer(message: types.Message, **kwargs):
+    img_data = await handler.make_photo()
+    if img_data:
+        await message.reply_photo(img_data, caption="")
     else:
-        await message.answer(NOT_ACCESS_ERROR)
+        await message.answer("a problem to get photo")
 
 
 @dp.message_handler(commands="events")
-async def make_event_subscription_answer(message: types.Message):
+@handler.access_check
+async def make_event_subscription_answer(message: types.Message, **kwargs):
     user = message.from_user
-    accepted = await handler.access(user)
-    if accepted:
-        cmd = (message.get_args() or "").strip().lower()
-        if cmd in ("on", ""):
-            msg = "turned on"
-            handler.storage.subscription_add(
-                str(user.username or user.id), message.chat.id
-            )
-        elif cmd == "off":
-            msg = "turned off"
-            handler.storage.subscription_remove(message.chat.id)
-        else:
-            msg = f"Unknown argument ({cmd})"
-        await message.answer(msg)
-
+    cmd = (message.get_args() or "").strip().lower()
+    if cmd in ("on", ""):
+        msg = "turned on"
+        handler.storage.subscription_add(
+            str(user.username or user.id), message.chat.id
+        )
+    elif cmd == "off":
+        msg = "turned off"
+        handler.storage.subscription_remove(message.chat.id)
     else:
-        await message.answer(NOT_ACCESS_ERROR)
+        msg = f"Unknown argument ({cmd})"
+
+    await message.answer(msg)
 
 
 @dp.message_handler(commands="start")
-async def gpio_api_on(message: types.Message):
-    accepted = await handler.access(message.from_user)
-    if accepted:
-        args = (message.get_args() or "").strip().lower().split()
-        group = ""
-        delay = 600
-        if len(args) == 1:
-            group, *_ = args
-        elif len(args) == 2:
-            group, delay = args
-            delay = int(delay) * 60
+@handler.access_check
+async def gpio_api_on(message: types.Message, **kwargs):
+    args = (message.get_args() or "").strip().lower().split()
+    group = ""
+    delay = 600
+    if len(args) == 1:
+        group, *_ = args
+    elif len(args) == 2:
+        group, delay = args
+        delay = int(delay) * 60
 
-        changed = await handler.update_gpio_state(group, True, delay)
-        if changed:
-            msg = f"Changed GPIO group '{group}'' for {delay} seconds"
-        else:
-            msg = f"Can't change GPIO group '{group}'"
-
-        await message.answer(msg)
+    changed = await handler.update_gpio_state(group, True, delay)
+    if changed:
+        msg = f"Changed GPIO group '{group}'' for {delay} seconds"
     else:
-        await message.answer(NOT_ACCESS_ERROR)
+        msg = f"Can't change GPIO group '{group}'"
+
+    await message.answer(msg)
 
 
 @dp.message_handler(commands="off")
-async def gpio_api_off(message: types.Message):
-    accepted = await handler.access(message.from_user)
-    if accepted:
-        args = (message.get_args() or "").strip().lower().split()
-        group = ""
-        if len(args) >= 1:
-            group, *_ = args
+@handler.access_check
+async def gpio_api_off(message: types.Message, **kwargs):
+    args = (message.get_args() or "").strip().lower().split()
+    group = ""
+    if len(args) >= 1:
+        group, *_ = args
 
-        changed = await handler.update_gpio_state(group, False)
-        if changed:
-            msg = f"Turned off GPIO group '{group}'"
-        else:
-            msg = f"Can't change GPIO group '{group}'"
-
-        await message.answer(msg)
+    changed = await handler.update_gpio_state(group, False)
+    if changed:
+        msg = f"Turned off GPIO group '{group}'"
     else:
-        await message.answer(NOT_ACCESS_ERROR)
+        msg = f"Can't change GPIO group '{group}'"
+
+    await message.answer(msg)
 
 
 @dp.message_handler(commands="air-time")
-async def gpio_api_air_time(message: types.Message):
-    accepted = await handler.access(message.from_user)
-    if accepted:
-        intervals = (message.get_args() or "").strip().lower().split()
-        data = []
-        for line in intervals:
-            if line and "-" in line:
-                row = line.split("-")
-                if len(row) == 2:
-                    begin, end = row
-                    if len(begin) == len(end):
-                        data.append((begin, end))
+@handler.access_check
+async def gpio_api_air_time(message: types.Message, **kwargs):
+    intervals = (message.get_args() or "").strip().lower().split()
+    data = []
+    for line in intervals:
+        if line and "-" in line:
+            row = line.split("-")
+            if len(row) == 2:
+                begin, end = row
+                if len(begin) == len(end):
+                    data.append((begin, end))
 
-        changed = await handler.update_gpio_air_schedule(data)
-        if changed:
-            msg = "New air GPIO group schedule"
-        else:
-            msg = f"Can't change GPIO schedule for intervals {data}"
-
-        await message.answer(msg)
+    changed = await handler.update_gpio_air_schedule(data)
+    if changed:
+        msg = "New air GPIO group schedule"
     else:
-        await message.answer(NOT_ACCESS_ERROR)
+        msg = f"Can't change GPIO schedule for intervals {data}"
+
+    await message.answer(msg)
 
 
 @dp.message_handler()
-async def make_answer(message: types.Message):
+@handler.access_check
+async def make_answer(message: types.Message, **kwargs):
     """Single enter point.
     """
     user = f"{message.from_user.full_name}({message.from_user.id})"
-    accepted = await handler.access(message.from_user)
-    if accepted:
-        msg, img_data  = await handler.execute(user, message.text)
-        if img_data:
-            await message.reply_photo(img_data, caption=msg)
-        else:
-            await message.answer(msg)
+    msg, img_data  = await handler.execute(user, message.text)
+    if img_data:
+        await message.reply_photo(img_data, caption=msg)
     else:
-        await message.answer(NOT_ACCESS_ERROR)
+        await message.answer(msg)
+
 
 try:
     executor.start_polling(
