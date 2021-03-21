@@ -7,6 +7,7 @@ HELP_MSG = """Commands:
 /start <air/light/alarm/engine> <time in minutes default 10 min> - on GPIO group
 /off <air/light/alarm/engine> - off GPIO group
 /air-time <time begin>-<time end> <time begin>-<time end> ... - schedule for 'air' GPIO group
+/restart - restart web-api server (a problem solving case)
 /help - see this message again
 """
 

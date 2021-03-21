@@ -15,6 +15,7 @@ TEMP_IMG_URI = env_var_line("TEMP_IMG_URI") or "t/history.jpeg"
 TEMP_VAL_URI = env_var_line("TEMP_VAL_URI") or "t"
 GPIO_API_URI = env_var_line("GPIO_API_URI") or "gpio"
 LAST_IMG_URI = env_var_line("LAST_IMG_URI") or "last_img.png"
+RESTART_API_URI = env_var_line("RESTART_API_URI") or "restart-service"
 PHOTO_URI = env_var_line("PHOTO_URI") or "photo.png"
 NO_LAST_IMG = env_var_bool("NO_LAST_IMG")
 
@@ -45,6 +46,7 @@ class CommandHandler:
     photo_event_api_url: str
     photo_api_url: str
     last_img_url: str
+    restart_api_url: str
 
     def __init__(
         self,
@@ -64,6 +66,7 @@ class CommandHandler:
         self.photo_event_api_url = urljoin(self.api_host, PHOTO_EVENTS_URI)
         self.photo_api_url = urljoin(self.api_host, PHOTO_URI)
         self.last_img_url = urljoin(self.api_host, LAST_IMG_URI)
+        self.restart_api_url = urljoin(self.api_host, RESTART_API_URI)
 
     def access_check(self, method: typing.Callable) -> typing.Callable:
         """Decorator for checking the access.
@@ -119,7 +122,6 @@ class CommandHandler:
         n = len(self.storage.users)
         self.storage.delete_user(user)
         return n > len(self.storage.users)
-
 
     async def temperature_history(
         self, begin: str, end: str
@@ -320,6 +322,32 @@ class CommandHandler:
                                 )
                             else:
                                 result = True
+                    else:
+                        answer = await resp.text()
+                        msg = f"Api answer: {answer}"
+                        self.logger.error(msg)
+
+        except Exception as err:
+            self.logger.error(f"Api {url} error: {err}")
+
+        return result
+
+    async def restart_api_server(self) -> bool:
+        """Run restart api request.
+        """
+        result = False
+        url = self.restart_api_url
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if 200 <= resp.status < 300:
+                        data: dict = await resp.json()
+                        if isinstance(data, dict):
+                            result = bool(data.get("ok"))
+                        else:
+                            self.logger.error(
+                                f"Format error in {url}: {data}"
+                            )
                     else:
                         answer = await resp.text()
                         msg = f"Api answer: {answer}"

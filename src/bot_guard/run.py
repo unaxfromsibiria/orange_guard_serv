@@ -279,3 +279,15 @@ try:
 finally:
     status.update(active=False)
     handler.close()
+
+
+@dp.message_handler(commands="restart")
+@handler.access_check
+async def restart_api(message: types.Message, **kwargs):
+    done = await handler.restart_api_server()
+    if done:
+        msg = "The server is restarting.."
+    else:
+        msg = "The function is not available"
+
+    await message.answer(msg)

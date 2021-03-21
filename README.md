@@ -30,4 +30,4 @@ I am going to implement all these points:
 
 - Write the result in the Readme (plus an instruction how to deploy the system into new mini PC) `0%`
 
-- Supervisor restarting API `50%`
+- Supervisor restarting API `100%`
