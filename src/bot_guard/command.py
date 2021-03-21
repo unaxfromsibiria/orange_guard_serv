@@ -344,6 +344,7 @@ class CommandHandler:
                         data: dict = await resp.json()
                         if isinstance(data, dict):
                             result = bool(data.get("ok"))
+                            self.logger.warning("Api-server is restarting..")
                         else:
                             self.logger.error(
                                 f"Format error in {url}: {data}"

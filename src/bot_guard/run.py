@@ -259,6 +259,18 @@ async def gpio_api_air_time(message: types.Message, **kwargs):
     await message.answer(msg)
 
 
+@dp.message_handler(commands="restart")
+@handler.access_check
+async def restart_api(message: types.Message, **kwargs):
+    done = await handler.restart_api_server()
+    if done:
+        msg = "The server is restarting.."
+    else:
+        msg = "The function is not available"
+
+    await message.answer(msg)
+
+
 @dp.message_handler()
 @handler.access_check
 async def make_answer(message: types.Message, **kwargs):
@@ -279,15 +291,3 @@ try:
 finally:
     status.update(active=False)
     handler.close()
-
-
-@dp.message_handler(commands="restart")
-@handler.access_check
-async def restart_api(message: types.Message, **kwargs):
-    done = await handler.restart_api_server()
-    if done:
-        msg = "The server is restarting.."
-    else:
-        msg = "The function is not available"
-
-    await message.answer(msg)
