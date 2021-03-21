@@ -29,3 +29,5 @@ I am going to implement all these points:
 - An alert message from bot for too fast changed temperature `100%`
 
 - Write the result in the Readme (plus an instruction how to deploy the system into new mini PC) `0%`
+
+- Supervisor restarting API `50%`

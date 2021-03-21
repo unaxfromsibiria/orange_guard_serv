@@ -1,5 +1,7 @@
+# adapted for armhf
 FROM    python:3.8.7-slim-buster
-RUN     mkdir -p /app/ && mkdir -p ~/.cache && apt-get update && pip install -U pip
+RUN     mkdir -p /app/ && mkdir -p ~/.cache && apt-get update
+RUN     apt-get install -y gcc python3-dev && pip install -U pip setuptools
 COPY    src /app
 WORKDIR /app
 RUN     pip install -r bot_guard/requirements.txt

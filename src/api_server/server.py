@@ -31,6 +31,7 @@ from .img import png_img_to_buffer
 from .img import save_last_area
 from .img import table_to_image
 from .network_check import check
+from .supervisor_rpc import supervisor_restart
 from .temperature import TEMPERATURE_READ_INTERVAL
 from .temperature import clear_tempearture_storage
 from .temperature import cpu_temperature
@@ -495,3 +496,10 @@ async def gpio_state_schedule_api(options: GpioScheduleParams):
         result["errors"] = errors
 
     return result
+
+
+@app.get("/restart-service")
+async def api_restart_service():
+    """Restart supervisor with the process of this service.
+    """
+    return {"ok": supervisor_restart("")}
