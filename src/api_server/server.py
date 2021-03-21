@@ -265,8 +265,9 @@ async def initial_task():
 async def close_app():
     """Off all.
     """
+    app.current_state["active"] = False
     try:
-        app.ps_executor.shutdown(cancel_futures=True)
+        app.ps_executor.shutdown(wait=False, cancel_futures=True)
     except Exception as err:
         logger.error(f"Close executer error: {err}")
 
